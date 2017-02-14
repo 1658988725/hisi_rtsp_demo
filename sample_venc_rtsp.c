@@ -21,6 +21,10 @@ extern "C"{
 #include "rtsp_demo.h"
 #include "comm.h"
 
+#include "loadbmp.h"
+
+int w = 100;
+int h = 100;
 
 VIDEO_NORM_E gs_enNorm = VIDEO_ENCODING_MODE_NTSC;
 
@@ -176,6 +180,58 @@ HI_VOID* VENC_GetVencStreamProc(HI_VOID *p)
 	
 	if(pstPack) free(pstPack);
 	return NULL;
+}
+
+
+int OSD_Handle_Init( RGN_HANDLE RgnHandle, VENC_GRP RgnVencChn)
+{
+	HI_S32 s32Ret = HI_FAILURE;
+	RGN_ATTR_S stRgnAttr;
+	MPP_CHN_S stChn;
+	VENC_GRP VencGrp;
+	RGN_CHN_ATTR_S stChnAttr;
+
+	/******************************************
+	*  step 1: create overlay regions
+	*****************************************/
+	stRgnAttr.enType                            = OVERLAY_RGN; //region type.
+	stRgnAttr.unAttr.stOverlay.enPixelFmt 		= PIXEL_FORMAT_RGB_1555; //format.
+	stRgnAttr.unAttr.stOverlay.stSize.u32Width  = w;
+	stRgnAttr.unAttr.stOverlay.stSize.u32Height = h;
+	stRgnAttr.unAttr.stOverlay.u32BgColor = 30;
+
+	s32Ret = HI_MPI_RGN_Create(RgnHandle, &stRgnAttr);
+	if (HI_SUCCESS != s32Ret)
+	{
+		SAMPLE_PRT("HI_MPI_RGN_Create (%d) failed with %#x!\n", RgnHandle, s32Ret);
+		return HI_FAILURE;
+	}
+	SAMPLE_PRT("create handle:%d success!\n", RgnHandle);
+
+	/***********************************************************
+	* step 2: attach created region handle to venc channel.
+	**********************************************************/
+	VencGrp = RgnVencChn;
+	stChn.enModId  = HI_ID_VENC;
+	stChn.s32DevId = 0;//0;
+	stChn.s32ChnId = RgnVencChn;
+	memset(&stChnAttr, 0, sizeof(stChnAttr));
+	stChnAttr.bShow 	= HI_TRUE;
+	stChnAttr.enType 	= OVERLAY_RGN;
+	stChnAttr.unChnAttr.stOverlayChn.stPoint.s32X    = (640-w)/2;
+	stChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y    = (480-h)/2;           
+	stChnAttr.unChnAttr.stOverlayChn.u32BgAlpha      = 50;
+    stChnAttr.unChnAttr.stOverlayChn.u32FgAlpha 	 = 128;
+    stChnAttr.unChnAttr.stOverlayChn.u32Layer 	     = 1;
+	stChnAttr.unChnAttr.stOverlayChn.stQpInfo.bAbsQp = HI_FALSE;
+	stChnAttr.unChnAttr.stOverlayChn.stQpInfo.s32Qp  = 0;
+	s32Ret = HI_MPI_RGN_AttachToChn(RgnHandle, &stChn, &stChnAttr);
+	if (HI_SUCCESS != s32Ret)
+	{
+		SAMPLE_PRT("HI_MPI_RGN_AttachToChn (%d to %d) failed with %#x!\n", RgnHandle, VencGrp, s32Ret);
+		return HI_FAILURE;
+	}
+	return HI_SUCCESS;
 }
 
 /******************************************************************************
@@ -462,6 +518,10 @@ HI_S32 SAMPLE_VENC_1080P_CLASSIC(HI_VOID)
 
 	pthread_create(&VencPid, 0, VENC_GetVencStreamProc, NULL);
 
+		//Create osd 
+	OSD_Handle_Init(1,1);
+
+	
 #if 0
     s32Ret = SAMPLE_COMM_VENC_StartGetStream(s32ChnNum);
     if (HI_SUCCESS != s32Ret)
@@ -547,6 +607,22 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, SAMPLE_VENC_HandleSig); 
 	
 	//
+
+	if(argc == 3)
+	{
+		w = atoi(argv[1]);
+		h = atoi(argv[2]);
+
+
+	}
+	if(w < 0 || w > 300)
+		w = 200;
+	
+	if(h < 0 || h > 300)
+		h = 200;
+
+	printf("%d * %d\n",w,h);
+	
 	
 	g_rtsplive = create_rtsp_demo(554);
 	session= create_rtsp_session(g_rtsplive,"/live.sdp");
