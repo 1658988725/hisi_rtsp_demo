@@ -21,7 +21,7 @@
 
 #define VALUE_BETWEEN(x,min,max) (((x)>=(min)) && ((x) <= (max)))
 
-char pFrameData[640][480];
+char pFrameData[307200];
 
 typedef struct hiDUMP_MEMBUF_S
 {
@@ -225,22 +225,23 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 
 	//Get Y data.
 	//配置是640*480的图像.
-	char chFrameTmp[640*480];
+	//char chFrameTmp[640*480];
 	int ex = 0 ;
 	if(pVBuf->u32Height == 480 && pVBuf->u32Width == 640)		
 	{
+		//获取Y数据，一行一行的copy
 	    for (h = 0; h < pVBuf->u32Height; h++)
 	    {
 	        pMemContent = pVBufVirt_Y + h * pVBuf->u32Stride[0];			
-			memcpy(chFrameTmp+ex, pMemContent,pVBuf->u32Width);
+			memcpy(pFrameData+ex, pMemContent,pVBuf->u32Width);
 			ex += pVBuf->u32Width;			
-			//memcpy(pFrameData[0][h], pMemContent,pVBuf->u32Width);
-	        //fwrite(pMemContent, pVBuf->u32Width, 1, pfd);
 	    }
-		memcpy(pFrameData, chFrameTmp,ex);
+
+		//以图像中心点计算w=cw h=ch方框的Y值
+		//然后取平均值.
 		
 		int xcb = (640-cw)/2;
-		int ycb = (480-cw)/2;
+		int ycb = (480-ch)/2;
 
 		int xce = xcb + cw;
 		int yce = ycb + ch;
@@ -250,8 +251,7 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 		for(x = xcb;x <= xce;x++)
 		for(y = ycb;y <= yce;y++)
 		{
-			avg += pFrameData[x][y];
-			//printf("pFrameData[%d][%d]= %d \n",x,y,pFrameData[x][y]);			
+			avg += pFrameData[y*640+x];
 			index ++;
 		}
 		avg = (avg/index);
@@ -259,12 +259,7 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 		//Calc Y avg..
 	}
     HI_MPI_SYS_Munmap(pUserPageAddr[0], u32Size);
-    pUserPageAddr[0] = HI_NULL;
-
-	
-
-	
-	
+    pUserPageAddr[0] = HI_NULL;	
 }
 
 
