@@ -95,6 +95,7 @@ void sendcmd(unsigned char uCmd)
 		uCmd = uCmd << 1;
 	}
 	CS(1);
+	sleep(1);
 }
 static void key_check_handle_thread()
 {
