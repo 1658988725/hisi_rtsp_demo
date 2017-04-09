@@ -181,6 +181,75 @@ void sample_yuv_dump(VIDEO_FRAME_S* pVBuf, FILE* pfd)
     pUserPageAddr[0] = HI_NULL;
 }
 
+//定义每250ms可以拍多少张照片
+
+#define N250  8
+#define EYE_OPEN  1
+#define EYE_CLOSE 2
+#define EYE_NULL  3
+
+unsigned char eyeStatus[11*N250];
+unsigned char eyeStatus_bak[11*N250];
+
+/*
+	眨眼状态,拍照状态
+	111 111 222 222 222 111 111  111....
+	500ms  -  750ms   -  500ms  
+
+
+	录像 1.5 - 2s
+	111 111 222 222 222 222 222 222 222 111 111  111....
+
+	500ms - 1750ms - 500ms  
+	
+*/
+
+void PhotoCtl()
+{
+	int count = 0;
+	int i;
+	for(i=0;i< 7*N250;i++)
+	{
+		if(eyeStatus[i] == EYE_NULL)count ++;
+	}
+	//如果有500ms以上的NULL 则为无效数据
+	if(count > 2*N250) return;
+
+	//判断眨眼
+	
+	
+}
+
+void AddCalcToList(unsigned char flag)
+{
+	memcpy(eyeStatus,eyeStatus_bak,sizeof(eyeStatus_bak));
+	eyeStatus[0] = flag;
+	memcpy(eyeStatus+1,eyeStatus_bak,sizeof(eyeStatus_bak)-1);	
+}
+
+
+
+#define OPEN_Y_MIN 60
+#define OPEN_Y_MAX 80
+
+#define CLOSE_Y_MIN 40
+#define CLOSE_Y_MIN 70
+
+
+
+long  get_timestamp()
+{
+    struct timeval tv_date;
+
+    /* gettimeofday() could return an error, and should be tested. However, the
+     * only possible error, according to 'man', is EFAULT, which can not happen
+     * here, since tv is a local variable. */
+    gettimeofday( &tv_date, NULL );
+    return( (long ) tv_date.tv_sec * 1000000 + (long ) tv_date.tv_usec );
+}
+
+int nCalcCount = 0;
+long preTime = 0;
 
 /*When saving a file,sp420 will be denoted by p420 and sp422 will be denoted by p422 in the name of the file */
 void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
@@ -255,7 +324,16 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 			index ++;
 		}
 		avg = (avg/index);
-		printf("avg y :%d\n",avg);		
+		nCalcCount ++;
+		if(nCalcCount%100 == 0)
+		{
+			nCalcCount = 0;
+			long nowTime = get_timestamp();
+			printf("%d \n",nowTime - preTime);
+			preTime = nowTime;
+			printf("avg y :%d\n",avg);	
+		}
+		//printf("avg y :%d\n",avg);		
 		//Calc Y avg..
 	}
     HI_MPI_SYS_Munmap(pUserPageAddr[0], u32Size);

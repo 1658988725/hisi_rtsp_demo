@@ -175,15 +175,40 @@ static void serio(void)
 
 
 
+static void read_serial()
+{
+    while(1)
+    {   
+    	CS(1);
+		DATA(1);
 
-void main()
+		switch(getchar())
+		{
+			case 0x31:
+				sendcmd(0x01);
+				printf("0x01 start rec\n");
+			break;
+			case 0x32:
+				sendcmd(0x02);
+				printf("0x02 stop rec\n");
+				break;
+			case 0x33:
+				sendcmd(0x03);
+				printf("0x03 capture\n");
+			break;
+		}
+	}
+}
+
+
+int main()
 {
 	key_Cfg();
 	serio();
 	CS(1);
 	DATA(1);
 	//key_check_thread();
-	key_check_handle_thread();
-
-	while(1);
+	//key_check_handle_thread();
+	read_serial();
+	return 0;
 }
