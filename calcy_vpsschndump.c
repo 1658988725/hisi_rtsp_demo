@@ -57,6 +57,10 @@ static int cw = 200;
 static int ch = 200;
 
 
+static int cXb = 0x00;
+static int cYb = 0x00;
+
+
 #define MEM_DEV_OPEN() \
     do {\
         if (s_s32MemDev <= 0)\
@@ -308,9 +312,9 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 
 		//以图像中心点计算w=cw h=ch方框的Y值
 		//然后取平均值.
-		
-		int xcb = (640-cw)/2;
-		int ycb = (480-ch)/2;
+
+		int xcb = cXb;
+		int ycb = cYb;
 
 		int xce = xcb + cw;
 		int yce = ycb + ch;
@@ -324,6 +328,7 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 			index ++;
 		}
 		avg = (avg/index);
+#if 0		
 		nCalcCount ++;
 		if(nCalcCount%100 == 0)
 		{
@@ -333,7 +338,8 @@ void calc_yuv_dump_y(VIDEO_FRAME_S* pVBuf)
 			preTime = nowTime;
 			printf("avg y :%d\n",avg);	
 		}
-		//printf("avg y :%d\n",avg);		
+#endif		
+		printf("avg y :%d\n",avg);		
 		//Calc Y avg..
 	}
     HI_MPI_SYS_Munmap(pUserPageAddr[0], u32Size);
@@ -594,17 +600,35 @@ HI_VOID* SAMPLE_MISC_VpssDump(VPSS_GRP Grp, VPSS_CHN Chn )
 
 HI_S32 main(int argc, char* argv[])
 {
+#if 0
     if (argc == 3)
     {
 		cw = atoi(argv[1]);
 		ch = atoi(argv[2]);
     }
-
 	if( cw < 0 || cw > 640) cw = 200;
 	if( ch < 0 || ch > 480) ch = 200;
 
 	printf("calc w = %d,h = %d\n",cw,ch);
+#endif
 
+    if (argc == 3)
+    {
+    	cXb = atoi(argv[1]);
+		cXb = atoi(argv[2]);
+    }
+
+	if(argc == 5)
+	{
+		cXb = atoi(argv[1]);
+		cXb = atoi(argv[2]);
+		cw = atoi(argv[3]);
+		ch = atoi(argv[4]);		
+	}
+
+	printf("calc point(%d,%d),w = %d,h = %d\n",cXb,cYb,cw,ch);
+	
+	
     VpssGrp = 0; 
     VpssChn = 1;
     u32VpssDepthFlag = 0;
