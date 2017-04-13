@@ -45,6 +45,16 @@ HI_U32 g_u32BlkCnt = 10;
 
 #endif
 
+typedef struct calc_config
+{
+	unsigned int x;
+	unsigned int y;
+	unsigned int w;
+	unsigned int h;
+}CALC_CONFIG;
+
+CALC_CONFIG g_config;
+
 static pthread_t VencPid;
 
 rtsp_demo_handle g_rtsplive = NULL;
@@ -196,8 +206,8 @@ int OSD_Handle_Init( RGN_HANDLE RgnHandle, VENC_GRP RgnVencChn)
 	*****************************************/
 	stRgnAttr.enType                            = OVERLAY_RGN; //region type.
 	stRgnAttr.unAttr.stOverlay.enPixelFmt 		= PIXEL_FORMAT_RGB_1555; //format.
-	stRgnAttr.unAttr.stOverlay.stSize.u32Width  = w;
-	stRgnAttr.unAttr.stOverlay.stSize.u32Height = h;
+	stRgnAttr.unAttr.stOverlay.stSize.u32Width  = g_config.w;
+	stRgnAttr.unAttr.stOverlay.stSize.u32Height = g_config.h;
 	stRgnAttr.unAttr.stOverlay.u32BgColor = 30;
 
 	s32Ret = HI_MPI_RGN_Create(RgnHandle, &stRgnAttr);
@@ -218,8 +228,8 @@ int OSD_Handle_Init( RGN_HANDLE RgnHandle, VENC_GRP RgnVencChn)
 	memset(&stChnAttr, 0, sizeof(stChnAttr));
 	stChnAttr.bShow 	= HI_TRUE;
 	stChnAttr.enType 	= OVERLAY_RGN;
-	stChnAttr.unChnAttr.stOverlayChn.stPoint.s32X    = (640-w)/2;
-	stChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y    = (480-h)/2;           
+	stChnAttr.unChnAttr.stOverlayChn.stPoint.s32X    = g_config.x;
+	stChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y    = g_config.y;           
 	stChnAttr.unChnAttr.stOverlayChn.u32BgAlpha      = 50;
     stChnAttr.unChnAttr.stOverlayChn.u32FgAlpha 	 = 128;
     stChnAttr.unChnAttr.stOverlayChn.u32Layer 	     = 1;
@@ -594,8 +604,77 @@ END_VENC_1080P_CLASSIC_0:	//system exit
     return s32Ret;    
 }
 
+void WriteConfig(unsigned int x,unsigned int y,unsigned int w,unsigned int h)
+{
+	system("rm -rf /home/config");
+	FILE *fp = fopen("/home/config", "wb");
+	g_config.x = x;
+	g_config.y = y;
+	g_config.w = w;
+	g_config.h = h;
+	fwrite(&g_config,sizeof(CALC_CONFIG),1,fp);
+	fflush(fp);
+	fclose(fp);
+}
 
+int GetConfig()
+{
+	printf("%s %d \n",__FUNCTION__,__LINE__);
 
+	if (0 == access("/home/config", F_OK))
+	{
+		printf("%s %d \n",__FUNCTION__,__LINE__);
+		FILE *fp = fopen("/home/config", "r");  
+		if (fp == NULL) {  
+			goto Configdefault;
+		}
+		printf("%s %d \n",__FUNCTION__,__LINE__);
+		fread(&g_config, sizeof(CALC_CONFIG), 1, fp);  
+		fclose(fp);
+	}
+	else
+		goto Configdefault;
+	
+
+	if(g_config.x > 640 || (g_config.x + g_config.w) > 640)
+		goto Configdefault;
+	
+	if(g_config.y > 480 || (g_config.y + g_config.h) > 480)
+		goto Configdefault;
+
+	if(g_config.w == 0 || g_config.h == 0 )
+		goto Configdefault;
+	
+	return 0;
+	
+Configdefault:
+		printf("%s %d \n",__FUNCTION__,__LINE__);
+		WriteConfig(0,0,200,200);
+		return -1;
+}
+
+void init_isp(void)
+{
+	ISP_DEV IspDev = 0;
+	ISP_EXPOSURE_ATTR_S stExpAttr;
+	HI_MPI_ISP_GetExposureAttr(IspDev, &stExpAttr);
+
+	stExpAttr.stAuto.stAGainRange.u32Min = 1024;
+	stExpAttr.stAuto.stAGainRange.u32Max= 4096;
+
+	stExpAttr.stAuto.stDGainRange.u32Min = 1024;
+	stExpAttr.stAuto.stDGainRange.u32Max = 2048;
+
+	stExpAttr.stAuto.stISPDGainRange.u32Min = 1024;
+	stExpAttr.stAuto.stISPDGainRange.u32Max = 2048;
+
+	stExpAttr.stAuto.stSysGainRange.u32Min = 1024;
+	stExpAttr.stAuto.stSysGainRange.u32Max = 8192;
+
+	stExpAttr.stAuto.u16EVBias = 900;
+
+	HI_MPI_ISP_SetExposureAttr(IspDev, &stExpAttr);
+}
 /******************************************************************************
 * function    : main()
 * Description : video venc sample
@@ -606,30 +685,101 @@ int main(int argc, char *argv[])
 	signal(SIGINT, SAMPLE_VENC_HandleSig);
 	signal(SIGTERM, SAMPLE_VENC_HandleSig); 
 	
-	//
+	GetConfig();
 
-	if(argc == 3)
-	{
-		w = atoi(argv[1]);
-		h = atoi(argv[2]);
-
-
-	}
-	if(w < 0 || w > 300)
-		w = 200;
-	
-	if(h < 0 || h > 300)
-		h = 200;
-
-	printf("%d * %d\n",w,h);
+	printf("%d,%d,%d,%d\n",g_config.x,g_config.y,g_config.w,g_config.h);
 	
 	
 	g_rtsplive = create_rtsp_demo(554);
 	session= create_rtsp_session(g_rtsplive,"/live.sdp");
 
 
-	s32Ret = SAMPLE_VENC_1080P_CLASSIC();       
-	while(1) sleep(1);	
+	s32Ret = SAMPLE_VENC_1080P_CLASSIC();      
+	init_isp();
+	
+
+	int x = 0;
+	
+	MPP_CHN_S stChn;	
+	RGN_CHN_ATTR_S stChnAttr;
+
+	char chCmd[256];
+	int flag = 0;
+
+#if 0
+	system("killall -9 calcy_vpsschndump");
+	sprintf(chCmd,"/home/calcy_vpsschndump %d %d %d %d &",g_config.x,g_config.y,g_config.w,g_config.h);
+	printf("%s\n",chCmd);
+	system(chCmd);
+#endif
+
+	while(1) 
+	{
+		flag = 0;
+		switch(getchar())
+		{
+			case 'w':
+				if(g_config.y >= 2)
+				g_config.y -=2;
+				
+				flag = 1;
+			break;
+			case 'a':
+				if(g_config.x >= 2)
+				g_config.x -=2;
+				flag = 1;
+			break;
+			case 'd':
+				flag = 1;
+				if(g_config.x <= 640-g_config.w)
+				g_config.x +=2;
+			break;
+			case 's':
+				flag = 1;
+				if(g_config.y <= 480-g_config.h)
+				g_config.y +=2;
+			break;
+			case 'k':
+				printf("killall calcy_vpsschndump\n");
+				WriteConfig(g_config.x,g_config.y,g_config.w,g_config.h);
+				system("killall -9 calcy_vpsschndump");
+				sprintf(chCmd,"/home/calcy_vpsschndump %d %d %d %d &",g_config.x,g_config.y,g_config.w,g_config.h);
+				printf("%s\n",chCmd);
+				system(chCmd);
+			break;
+			default:
+				flag = 0;
+				continue;
+				
+		}
+		if(flag == 0 )
+			continue;
+		
+		stChn.enModId  = HI_ID_VENC;
+		stChn.s32DevId = 0;//0;
+		stChn.s32ChnId = 1;  
+
+		s32Ret = HI_MPI_RGN_GetDisplayAttr(1,&stChn,&stChnAttr);
+		if (HI_SUCCESS != s32Ret)
+		{
+			SAMPLE_PRT("HI_MPI_RGN_GetDisplayAttr  failed with %#x!\n",s32Ret);
+			continue;
+			//return HI_FAILURE;
+		}
+
+		stChnAttr.unChnAttr.stOverlayChn.stPoint.s32X    = g_config.x;
+		stChnAttr.unChnAttr.stOverlayChn.stPoint.s32Y    = g_config.y;
+
+		s32Ret = HI_MPI_RGN_SetDisplayAttr(1,&stChn,&stChnAttr);
+		if (HI_SUCCESS != s32Ret)
+		{
+			SAMPLE_PRT("HI_MPI_RGN_SetDisplayAttr  failed with %#x!\n", s32Ret);
+			continue;
+			//return HI_FAILURE;
+		}
+		printf("stChnAttr.unChnAttr.stOverlayChn.stPoint.s32X:%d \n",stChnAttr.unChnAttr.stOverlayChn.stPoint.s32X);
+		//sleep(1);
+	}
 	exit(s32Ret);
 }
 
